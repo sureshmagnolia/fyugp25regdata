@@ -214,6 +214,10 @@
             // --- Function to display selected student's info ---
             const displayStudentInfo = (selectedPaper) => {
                 const students = studentData.filter(s => s.Paper === selectedPaper);
+                
+                // Sort students by name alphabetically
+                students.sort((a, b) => a.Name.localeCompare(b.Name));
+
                 const studentListBody = document.getElementById('student-list-body');
                 const paperTitle = document.getElementById('paper-title');
 
