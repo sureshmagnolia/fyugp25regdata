@@ -215,8 +215,14 @@
             const displayStudentInfo = (selectedPaper) => {
                 const students = studentData.filter(s => s.Paper === selectedPaper);
                 
-                // Sort students by name alphabetically
-                students.sort((a, b) => a.Name.localeCompare(b.Name));
+                // Sort students first by Dept, then by Name alphabetically
+                students.sort((a, b) => {
+                    const deptComparison = a.Dept.localeCompare(b.Dept);
+                    if (deptComparison !== 0) {
+                        return deptComparison;
+                    }
+                    return a.Name.localeCompare(b.Name);
+                });
 
                 const studentListBody = document.getElementById('student-list-body');
                 const paperTitle = document.getElementById('paper-title');
