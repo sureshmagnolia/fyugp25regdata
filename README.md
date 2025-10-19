@@ -1,1 +1,2 @@
 # fyugp25regdata
+read
