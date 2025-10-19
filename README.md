@@ -1,0 +1,1 @@
+# fyugp25regdata
