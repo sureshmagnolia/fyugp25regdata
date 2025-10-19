@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Paper Viewer</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for a clean look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for the app */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* A light gray background */
+        }
+
+        /* Styles for printing the student details */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printable-area, #printable-area * {
+                visibility: visible;
+            }
+            #printable-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            #print-button, header, .relative.mb-6 {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6 sm:p-8">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Student Data Viewer</h1>
+            <p class="text-gray-500 mt-2">Search for a paper to display a list of students.</p>
+        </header>
+
+        <!-- Search and Dropdown Section -->
+        <div class="relative mb-6">
+            <label for="paper-search" class="sr-only">Search for a paper</label>
+            <input type="text" id="paper-search" placeholder="Type to search for a paper..." class="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">
+            <div id="loading-state" class="mt-2 text-blue-600">Loading data from Google Sheet...</div>
+            <div id="paper-dropdown" class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto hidden">
+                <!-- Paper items will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <!-- Student Details Display Section -->
+        <div id="student-details" class="hidden">
+             <div id="printable-area" class="p-8 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-2">Student List</h2>
+                <h3 id="paper-title" class="text-lg font-medium text-gray-600 mb-6 border-b pb-2"></h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-2 text-left font-semibold text-gray-600">S.No.</th>
+                                <th class="px-4 py-2 text-left font-semibold text-gray-600">Name</th>
+                                <th class="px-4 py-2 text-left font-semibold text-gray-600">CAP</th>
+                                <th class="px-4 py-2 text-left font-semibold text-gray-600">Dept</th>
+                            </tr>
+                        </thead>
+                        <tbody id="student-list-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Student rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="text-center mt-6">
+                 <button id="print-button" class="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105">
+                    Print List
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- IMPORTANT ---
+            // PASTE YOUR GOOGLE SHEET URL HERE
+            const googleSheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRAPaZ3yVUhzpWgOQXFf7z0NT3JkBicK0PfMK-vY8e4fnQV1dmeEEOkeXnYj-c-MI2lD7Z7SW99LFyl/pub?gid=550394377&single=true&output=csv';
+            
+            // Global variable to hold all student data
+            let studentData = [];
+            let allPapers = [];
+
+            // DOM Elements
+            const searchInput = document.getElementById('paper-search');
+            const dropdown = document.getElementById('paper-dropdown');
+            const loadingState = document.getElementById('loading-state');
+            const studentDetailsContainer = document.getElementById('student-details');
+            const printButton = document.getElementById('print-button');
+
+            // Check if the URL has been replaced
+            if (googleSheetUrl.includes('PASTE_YOUR_PUBLISHED_GOOGLE_SHEET_CSV_URL_HERE')) {
+                loadingState.textContent = 'Error: Please update the googleSheetUrl in the script.';
+                loadingState.classList.remove('text-blue-600');
+                loadingState.classList.add('text-red-600', 'font-bold');
+                return;
+            }
+
+            // --- Function to fetch and parse CSV data ---
+            const fetchData = async () => {
+                try {
+                    const response = await fetch(googleSheetUrl);
+                    if (!response.ok) {
+                        throw new Error(`Network response was not ok: ${response.statusText}`);
+                    }
+                    const csvText = await response.text();
+                    studentData = parseCSV(csvText);
+                    
+                    // Get unique paper titles
+                    const paperSet = new Set(studentData.map(student => student.Paper.trim()).filter(paper => paper));
+                    allPapers = [...paperSet].sort();
+
+                    populateDropdown(allPapers);
+                    loadingState.style.display = 'none';
+
+                } catch (error) {
+                    loadingState.textContent = `Failed to load data: ${error.message}`;
+                    loadingState.classList.remove('text-blue-600');
+                    loadingState.classList.add('text-red-600', 'font-bold');
+                    console.error('Error fetching data:', error);
+                }
+            };
+            
+            // --- Function to parse CSV text into an array of objects ---
+            const parseCSV = (text) => {
+                // This function manually parses a CSV line to handle commas within quoted fields.
+                const parseLine = (line) => {
+                    const result = [];
+                    let current = '';
+                    let inQuotes = false;
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        const nextChar = line[i + 1];
+
+                        if (char === '"' && !inQuotes) {
+                            inQuotes = true;
+                            continue;
+                        }
+
+                        if (char === '"' && inQuotes) {
+                            if (nextChar === '"') { // Handle escaped quote ""
+                                current += '"';
+                                i++; // Skip next quote
+                            } else {
+                                inQuotes = false;
+                            }
+                            continue;
+                        }
+
+                        if (char === ',' && !inQuotes) {
+                            result.push(current);
+                            current = '';
+                            continue;
+                        }
+
+                        current += char;
+                    }
+                    result.push(current); // Add the last value
+                    return result.map(val => val.trim());
+                };
+
+                const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+                if (lines.length < 2) return [];
+
+                const headers = lines[0].split(',').map(h => h.trim());
+                const data = [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    const values = parseLine(lines[i]);
+                    if (values.length === headers.length) {
+                        const entry = {};
+                        headers.forEach((header, index) => {
+                            entry[header] = values[index] || '';
+                        });
+                        data.push(entry);
+                    }
+                }
+                return data;
+            };
+
+            // --- Function to populate the dropdown with paper titles ---
+            const populateDropdown = (papers) => {
+                dropdown.innerHTML = ''; // Clear existing items
+                if (papers.length === 0) {
+                    dropdown.innerHTML = '<div class="px-4 py-2 text-gray-500">No papers found.</div>';
+                    return;
+                }
+                papers.forEach(paper => {
+                    const item = document.createElement('div');
+                    item.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer';
+                    item.textContent = paper;
+                    item.addEventListener('click', () => {
+                        searchInput.value = paper;
+                        dropdown.classList.add('hidden');
+                        displayStudentInfo(paper);
+                    });
+                    dropdown.appendChild(item);
+                });
+            };
+
+            // --- Function to display selected student's info ---
+            const displayStudentInfo = (selectedPaper) => {
+                const students = studentData.filter(s => s.Paper === selectedPaper);
+                const studentListBody = document.getElementById('student-list-body');
+                const paperTitle = document.getElementById('paper-title');
+
+                // Clear previous results
+                studentListBody.innerHTML = ''; 
+                
+                if (students.length > 0) {
+                    paperTitle.textContent = `Paper: ${selectedPaper}`;
+                    students.forEach((student, index) => {
+                        const row = document.createElement('tr');
+                        row.className = 'hover:bg-gray-50';
+                        
+                        row.innerHTML = `
+                            <td class="px-4 py-3 whitespace-nowrap">${index + 1}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">${student.Name || 'N/A'}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">${student.CAP || 'N/A'}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">${student.Dept || 'N/A'}</td>
+                        `;
+                        studentListBody.appendChild(row);
+                    });
+                    
+                    studentDetailsContainer.classList.remove('hidden');
+                } else {
+                    // Hide the container if no students are found for the paper
+                    studentDetailsContainer.classList.add('hidden');
+                }
+            };
+            
+            // --- Event Listeners ---
+
+            // Show/hide and filter dropdown on search input
+            searchInput.addEventListener('input', () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                if (searchTerm) {
+                    const filteredPapers = allPapers.filter(paper => paper.toLowerCase().includes(searchTerm));
+                    populateDropdown(filteredPapers);
+                    dropdown.classList.remove('hidden');
+                } else {
+                    populateDropdown(allPapers);
+                    dropdown.classList.add('hidden');
+                }
+            });
+            
+            // Show all options on focus if input is empty
+            searchInput.addEventListener('focus', () => {
+                if(!searchInput.value){
+                   populateDropdown(allPapers);
+                }
+                dropdown.classList.remove('hidden');
+            });
+
+            // Hide dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+
+            // Print button functionality
+            printButton.addEventListener('click', () => {
+                window.print();
+            });
+
+            // --- Initial data load ---
+            fetchData();
+        });
+    </script>
+</body>
+</html>
+
